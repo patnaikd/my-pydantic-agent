@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import subprocess
@@ -32,10 +33,11 @@ def read_text_file(path: str) -> str:
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
-        logger.exception("read_file failed", extra={"path": str(file_path)})
+        logger.exception("read_file failed path=%s", file_path)
         return f"read_file error: {exc}"
 
-    logger.info("read_file ok", extra={"path": str(file_path), "size": len(content)})
+    logger.info("read_file ok path=%s size=%s", file_path, len(content))
+    logger.debug("read_file output=%s", json.dumps(content, default=str))
     return content
 
 
@@ -46,10 +48,11 @@ def write_text_file(path: str, content: str) -> str:
         file_path.write_text(content, encoding="utf-8")
         message = f"Wrote {len(content)} chars to {file_path}"
     except Exception as exc:
-        logger.exception("write_file failed", extra={"path": str(file_path)})
+        logger.exception("write_file failed path=%s", file_path)
         message = f"write_file error: {exc}"
 
-    logger.info("write_file ok", extra={"path": str(file_path), "size": len(content)})
+    logger.info("write_file ok path=%s size=%s", file_path, len(content))
+    logger.debug("write_file output=%s", json.dumps(message, default=str))
     return message
 
 
@@ -69,10 +72,11 @@ def run_bash(command: str) -> str:
             f"stderr:\n{completed.stderr}"
         )
     except Exception as exc:
-        logger.exception("run_bash failed", extra={"command": command})
+        logger.exception("run_bash failed command=%s", command)
         output = f"run_bash error: {exc}"
 
-    logger.info("run_bash ok", extra={"command": command})
+    logger.info("run_bash ok command=%s", command)
+    logger.debug("run_bash output=%s", json.dumps(output, default=str))
     return output
 
 
@@ -93,10 +97,11 @@ def run_python(script_path: str, args: list[str] | None = None) -> str:
             f"stderr:\n{completed.stderr}"
         )
     except Exception as exc:
-        logger.exception("run_python failed", extra={"command": " ".join(cmd)})
+        logger.exception("run_python failed command=%s", " ".join(cmd))
         output = f"run_python error: {exc}"
 
-    logger.info("run_python ok", extra={"command": " ".join(cmd)})
+    logger.info("run_python ok command=%s", " ".join(cmd))
+    logger.debug("run_python output=%s", json.dumps(output, default=str))
     return output
 
 
@@ -168,7 +173,7 @@ for message in st.session_state["messages"]:
             st.markdown(message["content"])
 
 if prompt := st.chat_input("Ask anything"):
-    logger.info("user_prompt", extra={"prompt_chars": len(prompt)})
+        logger.info("user_prompt chars=%s", len(prompt))
     st.session_state["messages"].append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
