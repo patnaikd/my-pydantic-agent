@@ -10,14 +10,14 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 from pydantic_ai import Agent
-from pydantic_ai.messages import ToolReturnPart
+from pydantic_ai.messages import ModelMessagesTypeAdapter, ToolReturnPart
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 
 load_dotenv()
 
 logging.basicConfig(
-    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    level=os.getenv("LOG_LEVEL", "DEBUG").upper(),
     format="%(asctime)s %(levelname)s %(name)s - %(message)s",
 )
 logger = logging.getLogger("pydantic_ai_streamlit")
@@ -133,7 +133,6 @@ def get_agent() -> Agent:
 def init_state() -> None:
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("model_messages", [])
-    st.session_state.setdefault("tool_log", [])
 
 
 def tool_events_from_messages(messages: list[object]) -> list[dict[str, str]]:
@@ -156,14 +155,6 @@ st.title("Pydantic AI Streamlit Chatbot")
 if not os.getenv("ANTHROPIC_API_KEY"):
     st.info("Set ANTHROPIC_API_KEY to use the Anthropic model.")
 
-with st.expander("Tool events (session)", expanded=False):
-    if st.session_state["tool_log"]:
-        for event in st.session_state["tool_log"]:
-            st.markdown(f"Tool output: `{event['tool']}`")
-            st.code(event["result"])
-    else:
-        st.caption("No tool events yet.")
-
 for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         if message.get("kind") == "tool":
@@ -173,7 +164,7 @@ for message in st.session_state["messages"]:
             st.markdown(message["content"])
 
 if prompt := st.chat_input("Ask anything"):
-        logger.info("user_prompt chars=%s", len(prompt))
+    logger.info("user_prompt chars=%s", len(prompt))
     st.session_state["messages"].append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -194,7 +185,6 @@ if prompt := st.chat_input("Ask anything"):
         st.stop()
 
     tool_events = tool_events_from_messages(result.new_messages())
-    st.session_state["tool_log"].extend(tool_events)
     for event in tool_events:
         with st.chat_message("assistant"):
             st.markdown(f"Tool output: `{event['tool']}`")
@@ -213,3 +203,15 @@ if prompt := st.chat_input("Ask anything"):
         st.markdown(response_text)
     st.session_state["messages"].append({"role": "assistant", "content": response_text})
     st.session_state["model_messages"] = result.all_messages()
+
+with st.expander("messages (raw json)", expanded=False):
+    st.code(
+        json.dumps(st.session_state["messages"], indent=2, default=str),
+        language="json",
+    )
+
+with st.expander("model_messages (raw json)", expanded=False):
+    model_messages_json = ModelMessagesTypeAdapter.dump_json(
+        st.session_state["model_messages"]
+    ).decode("utf-8")
+    st.code(model_messages_json, language="json")
