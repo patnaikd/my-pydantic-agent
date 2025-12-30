@@ -9,8 +9,9 @@ from pathlib import Path
 
 import streamlit as st
 from pydantic_ai import Agent
-from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
+
+from logging_model import LoggingAnthropicModel
 
 logger = logging.getLogger("pydantic_ai_streamlit")
 
@@ -102,7 +103,7 @@ def get_agent() -> Agent:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     provider = AnthropicProvider(api_key=api_key) if api_key else AnthropicProvider()
     model_name = os.getenv("ANTHROPIC_MODEL", DEFAULT_MODEL_NAME)
-    model = AnthropicModel(model_name, provider=provider)
+    model = LoggingAnthropicModel(model_name, provider=provider)
     my_coding_agent = Agent(model, system_prompt=SYSTEM_PROMPT)
 
     @my_coding_agent.tool_plain

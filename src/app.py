@@ -14,7 +14,7 @@ load_dotenv()
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "DEBUG").upper(),
-    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+    format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d - %(message)s",
 )
 logger = logging.getLogger("pydantic_ai_streamlit")
 
