@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -14,6 +15,12 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 
 load_dotenv()
 
+logging.basicConfig(
+    level=os.getenv("LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s - %(message)s",
+)
+logger = logging.getLogger("pydantic_ai_streamlit")
+
 SYSTEM_PROMPT = (
     "You are a helpful assistant. Use tools when they help, and keep responses concise."
 )
@@ -25,8 +32,10 @@ def read_text_file(path: str) -> str:
     try:
         content = file_path.read_text(encoding="utf-8", errors="replace")
     except Exception as exc:
+        logger.exception("read_file failed", extra={"path": str(file_path)})
         return f"read_file error: {exc}"
 
+    logger.info("read_file ok", extra={"path": str(file_path), "size": len(content)})
     return content
 
 
@@ -37,8 +46,10 @@ def write_text_file(path: str, content: str) -> str:
         file_path.write_text(content, encoding="utf-8")
         message = f"Wrote {len(content)} chars to {file_path}"
     except Exception as exc:
+        logger.exception("write_file failed", extra={"path": str(file_path)})
         message = f"write_file error: {exc}"
 
+    logger.info("write_file ok", extra={"path": str(file_path), "size": len(content)})
     return message
 
 
@@ -58,8 +69,10 @@ def run_bash(command: str) -> str:
             f"stderr:\n{completed.stderr}"
         )
     except Exception as exc:
+        logger.exception("run_bash failed", extra={"command": command})
         output = f"run_bash error: {exc}"
 
+    logger.info("run_bash ok", extra={"command": command})
     return output
 
 
@@ -80,8 +93,10 @@ def run_python(script_path: str, args: list[str] | None = None) -> str:
             f"stderr:\n{completed.stderr}"
         )
     except Exception as exc:
+        logger.exception("run_python failed", extra={"command": " ".join(cmd)})
         output = f"run_python error: {exc}"
 
+    logger.info("run_python ok", extra={"command": " ".join(cmd)})
     return output
 
 
@@ -90,30 +105,30 @@ def get_agent() -> Agent:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     provider = AnthropicProvider(api_key=api_key) if api_key else AnthropicProvider()
     model = AnthropicModel(MODEL_NAME, provider=provider)
-    agent = Agent(model, system_prompt=SYSTEM_PROMPT)
+    my_coding_agent = Agent(model, system_prompt=SYSTEM_PROMPT)
 
-    @agent.tool_plain
+    @my_coding_agent.tool_plain
     def read_file(path: str) -> str:
         return read_text_file(path)
 
-    @agent.tool_plain
+    @my_coding_agent.tool_plain
     def write_file(path: str, content: str) -> str:
         return write_text_file(path, content)
 
-    @agent.tool_plain
+    @my_coding_agent.tool_plain
     def execute_bash(command: str) -> str:
         return run_bash(command)
 
-    @agent.tool_plain
+    @my_coding_agent.tool_plain
     def execute_python(script_path: str, args: list[str] | None = None) -> str:
         return run_python(script_path, args)
 
-    return agent
-
+    return my_coding_agent
 
 def init_state() -> None:
     st.session_state.setdefault("messages", [])
     st.session_state.setdefault("model_messages", [])
+    st.session_state.setdefault("tool_log", [])
 
 
 def tool_events_from_messages(messages: list[object]) -> list[dict[str, str]]:
@@ -136,6 +151,14 @@ st.title("Pydantic AI Streamlit Chatbot")
 if not os.getenv("ANTHROPIC_API_KEY"):
     st.info("Set ANTHROPIC_API_KEY to use the Anthropic model.")
 
+with st.expander("Tool events (session)", expanded=False):
+    if st.session_state["tool_log"]:
+        for event in st.session_state["tool_log"]:
+            st.markdown(f"Tool output: `{event['tool']}`")
+            st.code(event["result"])
+    else:
+        st.caption("No tool events yet.")
+
 for message in st.session_state["messages"]:
     with st.chat_message(message["role"]):
         if message.get("kind") == "tool":
@@ -145,6 +168,7 @@ for message in st.session_state["messages"]:
             st.markdown(message["content"])
 
 if prompt := st.chat_input("Ask anything"):
+    logger.info("user_prompt", extra={"prompt_chars": len(prompt)})
     st.session_state["messages"].append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
@@ -157,6 +181,7 @@ if prompt := st.chat_input("Ask anything"):
                 message_history=st.session_state["model_messages"],
             )
     except Exception as exc:
+        logger.exception("agent_error")
         error_text = f"Agent error: {exc}"
         with st.chat_message("assistant"):
             st.markdown(error_text)
@@ -164,6 +189,7 @@ if prompt := st.chat_input("Ask anything"):
         st.stop()
 
     tool_events = tool_events_from_messages(result.new_messages())
+    st.session_state["tool_log"].extend(tool_events)
     for event in tool_events:
         with st.chat_message("assistant"):
             st.markdown(f"Tool output: `{event['tool']}`")
