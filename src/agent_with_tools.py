@@ -7,13 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-import streamlit as st
+from functools import lru_cache
 from pydantic_ai import Agent
 from pydantic_ai.providers.anthropic import AnthropicProvider
 
 from logging_model import LoggingAnthropicModel
 
-logger = logging.getLogger("pydantic_ai_streamlit")
+logger = logging.getLogger("pydantic_ai_cli")
 
 SYSTEM_PROMPT = (
     "You are a helpful assistant. Use tools when they help, and keep responses concise."
@@ -98,7 +98,7 @@ def run_python(script_path: str, args: list[str] | None = None) -> str:
     return output
 
 
-@st.cache_resource
+@lru_cache(maxsize=1)
 def get_agent() -> Agent:
     api_key = os.getenv("ANTHROPIC_API_KEY")
     provider = AnthropicProvider(api_key=api_key) if api_key else AnthropicProvider()
